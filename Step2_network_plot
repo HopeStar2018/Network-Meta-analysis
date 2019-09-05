@@ -1,0 +1,39 @@
+rm(list = ls())
+setwd("D:\\")
+# BiocManager::install("tidyverse")
+library(tidyverse)
+
+REmodel_networkplot <- read.csv("D:\\OS_rawdata_typeI_ALL.csv",header = T)
+anno <- read.csv("D:\\anno_all.csv")
+
+source("D:\\PHD_database\\Commonly_used_statistical_analysis\\Network_meta_analysis_HR\\Step2_network_plot\\mtm.networkplot.R")
+
+t1<-REmodel_networkplot$Ltx
+t2<-REmodel_networkplot$Lbase
+n1<-REmodel_networkplot$n1
+n2<-REmodel_networkplot$n2
+
+primary_treatsize <- NULL
+
+nTx <- max(REmodel_networkplot$Ltx,REmodel_networkplot$Lbase)
+
+for (i in 1:nTx) {
+  tmp_1 <- REmodel_networkplot[which(REmodel_networkplot$Ltx== i), ]
+  tmp_2 <- REmodel_networkplot[which(REmodel_networkplot$Lbase == i), ]
+  
+  primary_treatsize[i] <- sum(tmp_1$n1,tmp_2$n2)
+}
+
+total<-apply(cbind(n1,n2),1,sum)
+
+modified_treatsize <- NULL
+
+modified_treatsize<-primary_treatsize/100
+
+names <- arrange(anno,Num) %>% .$Treatment %>% as.character()
+
+# names<-c("OLG","PLACEBO","OLG+YDL","YDL","YDL+YRK")
+
+pdf("Step2_network_plot.pdf",width = 12,height = 8)
+mtm.networkplot.fun(t1,t2,percomparison=T, nameoftreatments=names, VAR1=modified_treatsize, VAR2=total)
+dev.off()
