@@ -1,0 +1,46 @@
+rm(list = ls())
+#设定工作目录
+setwd("D:\\")
+
+###加载安装包
+library("gemtc")
+library("rjags")
+
+###读取数据
+data1 <- read.csv("D:\\OS_rawdata_typeII.csv")
+data2 <- read.csv("D:\\anno.csv")
+colnames(data2) <- c("id","description")
+
+###做网状图
+network <- mtc.network(data.re=data1,description="Example", treatments=data2)
+pdf("network.pdf")
+plot(network)
+dev.off()
+
+##做网状meta画森林图
+model<-mtc.model(network,type="consistency", factor = 2.5,n.chain=3,likelihood="binom",link="cloglog",linearModel="random")
+results <- mtc.run(model, n.adapt =10000, n.iter = 100000, thin = 10,sampler ="JAGS")
+
+pdf("forest.pdf")
+forest(relative.effect(results, "1")) #以2为对照则改称2，以此类推
+dev.off()
+
+forest(relative.effect(results, "2"))
+forest(relative.effect(results, "3"))
+forest(relative.effect(results, "4"))
+
+###轨迹密度图
+pdf("trace.pdf")
+plot(results)
+dev.off()
+
+
+###等级概率图
+# ranks<- rank.probability(results,preferredDirection=1) #有利结局指标
+ranks<- rank.probability(results,preferredDirection=-1) #有害结局指标
+
+print(ranks)
+
+pdf("rank.pdf")
+plot(ranks, beside=TRUE)
+dev.off()
