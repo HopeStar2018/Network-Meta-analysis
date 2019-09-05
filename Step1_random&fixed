@@ -1,0 +1,94 @@
+## 随机效应模型
+rm(list = ls())
+setwd("Your working directory")
+pathway <- getwd()
+options(stringsAsFactors = FALSE) #??ֹchrת??factor
+library(R2WinBUGS)
+
+REmodel<-function(){ 
+  sd~dunif(0,5)
+  reTau < - 2/pow(sd,2)
+  #On tx effect mean
+  beta[1] < -0
+  for (tt in 2:nTx){
+    beta[tt]~dnorm(0,1.0E-6)
+  }
+  #On individual study baseline effect
+  for(ss in 1:nStudies){
+    alpha[ss] ~ dnorm(0,1.0E-6)
+  }
+  #Define random effect
+  for (ss in 1:nStudies){
+    for(tt in 1:nTx){
+      re[ss,tt]~dnorm(0,reTau)
+    }
+  }
+  #Fit data
+  #For hazard ratio reporting studies
+  for(ii in 1:LnObs ){
+    Lmu[ii] < - alpha[Lstudy[ii]]*multi[ii] + re[Lstudy[ii],Ltx[ii]] -re[Lstudy[ii],Lbase[ii]] + beta[Ltx[ii]] - beta[Lbase[ii]]
+    Lprec[ii] < - 1/pow(Lse[ii],2)
+    Lmean[ii] ~ dnorm(Lmu[ii],Lprec[ii])
+  }
+  
+  # Calculate HRs
+  for (hh in 2:nTx) {
+    hr[hh] < -exp(beta[hh])
+  }
+  # Ranking plot
+  for (ll in 1:nTx) {
+    for (mm in 1:nTx) {
+      rk[ll,mm] < - equals(ranked(beta[],mm),beta[ll])
+    }
+  }
+}
+
+
+Bug_name <- "HR_random.bug"
+filename <- file.path(pathway,Bug_name)
+write.model(REmodel, filename)
+# file.show(filename)
+
+
+REmodeldata <- read.csv("Your data",header = T)
+# REmodeldata$ul <- as.numeric(as.character(REmodeldata$ul))
+# REmodeldata$ll <- as.numeric(as.character(REmodeldata$ll))
+# REmodeldata$hr <- as.numeric(as.character(REmodeldata$hr))
+
+#######
+REmodeldata$Lmean <- log(REmodeldata$hr)
+REmodeldata$Lse <- (log(REmodeldata$ul) - log(REmodeldata$ll))/(2*1.96)
+
+#######
+
+Lstudy<-REmodeldata$Lstudy
+Ltx<-REmodeldata$Ltx
+Lbase<-REmodeldata$Lbase
+Lmean<-REmodeldata$Lmean
+Lse<-REmodeldata$Lse
+multi<-REmodeldata$multi
+
+LnObs<- nrow(REmodeldata)
+nTx<- max(REmodeldata$Ltx,REmodeldata$Lbase)
+nStudies<-length(unique(REmodeldata$Lstudy))
+
+
+inits<-function(){
+  list(alpha = rep(-0.5,nStudies), 
+       beta =c(NA,rep(-0.5,nTx-1)),sd = 0.1)
+  list(alpha = rep(0.5,nStudies),
+       beta = c(NA,rep(0.5,nTx-1)),sd = 1)
+  list(alpha = rep(0,nStudies),
+       beta = c(NA,rep(0,nTx-1)),sd = 1)
+}
+
+data<-list("Lstudy","Ltx","Lbase","Lmean","Lse","multi","LnObs","nTx","nStudies")
+
+HR.sim<-bugs(data,inits,model.file=paste0(pathway,'/',Bug_name),parameters=c("hr","rk"),n.chains=2,n.iter=240000,n.burnin=40000,
+             bugs.directory="E:\\WinBUGS14")
+
+print(HR.sim,digits.summary=4)
+
+pdf('HR_chemo.pdf',width = 12, height = 8)
+plot(HR.sim)
+dev.off()
